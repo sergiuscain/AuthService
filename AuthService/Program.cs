@@ -1,3 +1,4 @@
+using AuthService.Application.Auth.Common;
 using AuthService.Application.Auth.Services;
 using AuthService.Application.Common.Interfaces;
 using AuthService.Infrastructure.Persistence;
@@ -17,6 +18,8 @@ builder.Services.AddScoped<IAppDbContext>(sp => sp.GetRequiredService<AppDbConte
 builder.Services.AddSingleton<IPasswordHasher, PasswordHasher>();
 builder.Services.Configure<JwtOptions>(
     builder.Configuration.GetSection("Jwt"));
+builder.Services.AddMediatR(cfg =>
+    cfg.RegisterServicesFromAssembly(typeof(UserDto).Assembly));
 
 builder.Services.AddSingleton<IJwtTokenGenerator, JwtTokenGenerator>();
 

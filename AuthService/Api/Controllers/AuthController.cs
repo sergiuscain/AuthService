@@ -1,4 +1,5 @@
 ﻿using AuthService.Application.Auth.Commands.Login;
+using AuthService.Application.Auth.Commands.Logout;
 using AuthService.Application.Auth.Commands.Refresh;
 using AuthService.Application.Auth.Commands.Register;
 using AuthService.Application.Auth.Common;
@@ -140,6 +141,15 @@ public class AuthController : ControllerBase
     /// <summary>Выход. Отзывает refresh token и чистит cookie.</summary>
     /// <response code="501">Пока не реализовано.</response>
     [HttpPost("logout")]
-    public IActionResult Logout()
-        => StatusCode(StatusCodes.Status501NotImplemented, new { message = "Not implemented yet." });
+    public async Task<IActionResult> Logout(CancellationToken ct)
+    {
+        Request.Cookies.TryGetValue("refresh_token", out var refreshToken);
+
+        await _mediator.Send(new LogoutCommand(refreshToken), ct);
+
+        Response.Cookies.Delete("access_token");
+        Response.Cookies.Delete("refresh_token");
+
+        return NoContent();
+    }
 }

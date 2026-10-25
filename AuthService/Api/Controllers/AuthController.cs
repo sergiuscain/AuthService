@@ -1,4 +1,5 @@
-﻿using AuthService.Application.Auth.Commands.Register;
+﻿using AuthService.Application.Auth.Commands.Login;
+using AuthService.Application.Auth.Commands.Register;
 using AuthService.Application.Auth.Common;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
@@ -32,11 +33,52 @@ public class AuthController : ControllerBase
         }
     }
 
-    /// <summary>Логин. Устанавливает cookie и возвращает access token.</summary>
-    /// <response code="501">Пока не реализовано.</response>
+
     [HttpPost("login")]
-    public IActionResult Login()
-        => StatusCode(StatusCodes.Status501NotImplemented, new { message = "Not implemented yet." });
+    public async Task<ActionResult<AuthTokensDto>> Login(
+    [FromBody] LoginCommand command, CancellationToken ct)
+    {
+        try
+        {
+            var result = await _mediator.Send(command, ct);
+
+            var cookieOptions = new CookieOptions
+            {
+                HttpOnly = true,
+                Secure = Request.IsHttps,
+                SameSite = SameSiteMode.Lax,
+                Path = "/"
+            };
+
+            Response.Cookies.Append(
+                "access_token", result.Tokens.AccessToken,
+                new CookieOptions
+                {
+                    HttpOnly = true,
+                    Secure = Request.IsHttps,
+                    SameSite = SameSiteMode.Lax,
+                    Path = "/",
+                    Expires = result.Tokens.AccessTokenExpiresAt
+                });
+
+            Response.Cookies.Append(
+                "refresh_token", result.RefreshToken,
+                new CookieOptions
+                {
+                    HttpOnly = true,
+                    Secure = Request.IsHttps,
+                    SameSite = SameSiteMode.Lax,
+                    Path = "/",
+                    Expires = result.RefreshTokenExpiresAt
+                });
+
+            return Ok(result.Tokens);
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
+    }
 
     /// <summary>Обновить access token по refresh token.</summary>
     /// <response code="501">Пока не реализовано.</response>

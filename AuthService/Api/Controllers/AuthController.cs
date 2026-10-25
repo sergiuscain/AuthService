@@ -1,4 +1,5 @@
 ﻿using AuthService.Application.Auth.Commands.Login;
+using AuthService.Application.Auth.Commands.Refresh;
 using AuthService.Application.Auth.Commands.Register;
 using AuthService.Application.Auth.Common;
 using MediatR;
@@ -83,8 +84,58 @@ public class AuthController : ControllerBase
     /// <summary>Обновить access token по refresh token.</summary>
     /// <response code="501">Пока не реализовано.</response>
     [HttpPost("refresh")]
-    public IActionResult Refresh()
-        => StatusCode(StatusCodes.Status501NotImplemented, new { message = "Not implemented yet." });
+    public async Task<ActionResult<AuthTokensDto>> Refresh(CancellationToken ct)
+    {
+        // Refresh-токен приходит из cookie. Если клиент не-браузерный (Bearer-сценарий) —
+        // можно передать в теле. Пока поддерживаем только cookie.
+        if (!Request.Cookies.TryGetValue("refresh_token", out var refreshToken)
+            || string.IsNullOrWhiteSpace(refreshToken))
+        {
+            return Unauthorized(new { error = "Refresh token cookie is missing." });
+        }
+
+        try
+        {
+            var result = await _mediator.Send(new RefreshCommand(refreshToken), ct);
+
+            var cookieBase = new CookieOptions
+            {
+                HttpOnly = true,
+                Secure = Request.IsHttps,
+                SameSite = SameSiteMode.Lax,
+                Path = "/"
+            };
+
+            Response.Cookies.Append("access_token", result.Tokens.AccessToken,
+                new CookieOptions
+                {
+                    HttpOnly = true,
+                    Secure = Request.IsHttps,
+                    SameSite = SameSiteMode.Lax,
+                    Path = "/",
+                    Expires = result.Tokens.AccessTokenExpiresAt
+                });
+
+            Response.Cookies.Append("refresh_token", result.RefreshToken,
+                new CookieOptions
+                {
+                    HttpOnly = true,
+                    Secure = Request.IsHttps,
+                    SameSite = SameSiteMode.Lax,
+                    Path = "/",
+                    Expires = result.RefreshTokenExpiresAt
+                });
+
+            return Ok(result.Tokens);
+        }
+        catch (ArgumentException ex)
+        {
+            // При ошибке чистим cookie — не даём клиенту долбиться с протухшим токеном.
+            Response.Cookies.Delete("access_token");
+            Response.Cookies.Delete("refresh_token");
+            return Unauthorized(new { error = ex.Message });
+        }
+    }
 
     /// <summary>Выход. Отзывает refresh token и чистит cookie.</summary>
     /// <response code="501">Пока не реализовано.</response>

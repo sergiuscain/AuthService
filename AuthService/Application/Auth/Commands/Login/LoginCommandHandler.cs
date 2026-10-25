@@ -12,15 +12,18 @@ public sealed class LoginCommandHandler : IRequestHandler<LoginCommand, LoginRes
     private readonly IAppDbContext _db;
     private readonly IPasswordHasher _passwordHasher;
     private readonly IJwtTokenGenerator _jwt;
+    private readonly ITokenHasher _tokenHasher;
 
     public LoginCommandHandler(
         IAppDbContext db,
         IPasswordHasher passwordHasher,
-        IJwtTokenGenerator jwt)
+        IJwtTokenGenerator jwt,
+        ITokenHasher tokenHasher)
     {
         _db = db;
         _passwordHasher = passwordHasher;
         _jwt = jwt;
+        _tokenHasher = tokenHasher;
     }
 
     public async Task<LoginResult> Handle(LoginCommand request, CancellationToken ct)
@@ -42,7 +45,7 @@ public sealed class LoginCommandHandler : IRequestHandler<LoginCommand, LoginRes
         {
             Id = Guid.NewGuid(),
             UserId = user.Id,
-            TokenHash = Sha256(refreshToken),
+            TokenHash = _tokenHasher.Hash(refreshToken),
             ExpiresAt = refreshExpiresAt,
             CreatedAt = DateTime.UtcNow
         };
@@ -55,12 +58,5 @@ public sealed class LoginCommandHandler : IRequestHandler<LoginCommand, LoginRes
             User: new UserDto(user.Id, user.Email, user.Role, user.CreatedAt));
 
         return new LoginResult(tokens, refreshToken, refreshExpiresAt);
-    }
-
-    private static string Sha256(string value)
-    {
-        var bytes = System.Text.Encoding.UTF8.GetBytes(value);
-        var hash = System.Security.Cryptography.SHA256.HashData(bytes);
-        return Convert.ToHexString(hash);
     }
 }

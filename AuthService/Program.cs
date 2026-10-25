@@ -1,5 +1,7 @@
+using AuthService.Application.Auth.Services;
 using AuthService.Application.Common.Interfaces;
 using AuthService.Infrastructure.Persistence;
+using AuthService.Infrastructure.Security;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -12,6 +14,7 @@ builder.Services.AddSwaggerGen();
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 builder.Services.AddScoped<IAppDbContext>(sp => sp.GetRequiredService<AppDbContext>());
+builder.Services.AddSingleton<IPasswordHasher, PasswordHasher>();
 
 var app = builder.Build();
 

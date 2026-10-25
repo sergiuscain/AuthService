@@ -14,7 +14,6 @@ var jwtSection = builder.Configuration.GetSection("Jwt");
 
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
-builder.Services.AddSwaggerGen();
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 builder.Services.AddScoped<IAppDbContext>(sp => sp.GetRequiredService<AppDbContext>());
@@ -24,7 +23,13 @@ builder.Services.Configure<JwtOptions>(
 builder.Services.AddMediatR(cfg =>
     cfg.RegisterServicesFromAssembly(typeof(UserDto).Assembly));
 builder.Services.AddSingleton<ITokenHasher, TokenHasher>();
-
+builder.Services.AddSwaggerGen(options =>
+{
+    var xmlFile = $"{System.Reflection.Assembly.GetExecutingAssembly().GetName().Name}.xml";
+    var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
+    if (File.Exists(xmlPath))
+        options.IncludeXmlComments(xmlPath);
+});
 builder.Services.AddSingleton<IJwtTokenGenerator, JwtTokenGenerator>();
 builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)

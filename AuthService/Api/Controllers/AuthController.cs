@@ -22,7 +22,7 @@ public class AuthController : ControllerBase
     /// <response code="400">Ошибка валидации или email уже занят.</response>
     [HttpPost("register")]
     public async Task<ActionResult<UserDto>> Register(
-    [FromBody] RegisterCommand command, CancellationToken ct)
+        [FromBody] RegisterCommand command, CancellationToken ct)
     {
         try
         {
@@ -35,22 +35,16 @@ public class AuthController : ControllerBase
         }
     }
 
-
+    /// <summary>Логин. Устанавливает cookie access_token и refresh_token и возвращает access token в теле.</summary>
+    /// <response code="200">Успешный логин. Access token в теле, refresh — только в cookie.</response>
+    /// <response code="400">Неверный email или пароль.</response>
     [HttpPost("login")]
     public async Task<ActionResult<AuthTokensDto>> Login(
-    [FromBody] LoginCommand command, CancellationToken ct)
+        [FromBody] LoginCommand command, CancellationToken ct)
     {
         try
         {
             var result = await _mediator.Send(command, ct);
-
-            var cookieOptions = new CookieOptions
-            {
-                HttpOnly = true,
-                Secure = Request.IsHttps,
-                SameSite = SameSiteMode.Lax,
-                Path = "/"
-            };
 
             Response.Cookies.Append(
                 "access_token", result.Tokens.AccessToken,
@@ -82,13 +76,12 @@ public class AuthController : ControllerBase
         }
     }
 
-    /// <summary>Обновить access token по refresh token.</summary>
-    /// <response code="501">Пока не реализовано.</response>
+    /// <summary>Обновить access token по refresh token из cookie. Старый refresh отзывается, выдаётся новый.</summary>
+    /// <response code="200">Новые токены. Cookie перезаписаны, access token — в теле.</response>
+    /// <response code="401">Refresh token отсутствует, истёк или отозван. Cookie очищены.</response>
     [HttpPost("refresh")]
     public async Task<ActionResult<AuthTokensDto>> Refresh(CancellationToken ct)
     {
-        // Refresh-токен приходит из cookie. Если клиент не-браузерный (Bearer-сценарий) —
-        // можно передать в теле. Пока поддерживаем только cookie.
         if (!Request.Cookies.TryGetValue("refresh_token", out var refreshToken)
             || string.IsNullOrWhiteSpace(refreshToken))
         {
@@ -98,14 +91,6 @@ public class AuthController : ControllerBase
         try
         {
             var result = await _mediator.Send(new RefreshCommand(refreshToken), ct);
-
-            var cookieBase = new CookieOptions
-            {
-                HttpOnly = true,
-                Secure = Request.IsHttps,
-                SameSite = SameSiteMode.Lax,
-                Path = "/"
-            };
 
             Response.Cookies.Append("access_token", result.Tokens.AccessToken,
                 new CookieOptions
@@ -131,15 +116,14 @@ public class AuthController : ControllerBase
         }
         catch (ArgumentException ex)
         {
-            // При ошибке чистим cookie — не даём клиенту долбиться с протухшим токеном.
             Response.Cookies.Delete("access_token");
             Response.Cookies.Delete("refresh_token");
             return Unauthorized(new { error = ex.Message });
         }
     }
 
-    /// <summary>Выход. Отзывает refresh token и чистит cookie.</summary>
-    /// <response code="501">Пока не реализовано.</response>
+    /// <summary>Выход. Отзывает текущий refresh token и чистит cookie. Идемпотентен.</summary>
+    /// <response code="204">Выход выполнен (или пользователь уже не был залогинен).</response>
     [HttpPost("logout")]
     public async Task<IActionResult> Logout(CancellationToken ct)
     {

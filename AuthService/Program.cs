@@ -73,8 +73,15 @@ if (app.Environment.IsDevelopment())
 }
 using (var scope = app.Services.CreateScope())
 {
-    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    var sp = scope.ServiceProvider;
+    var db = sp.GetRequiredService<AuthService.Infrastructure.Persistence.AppDbContext>();
     await db.Database.MigrateAsync();
+
+    var hasher = sp.GetRequiredService<AuthService.Application.Auth.Services.IPasswordHasher>();
+    var logger = sp.GetRequiredService<ILogger<Program>>();
+
+    await AuthService.Infrastructure.Persistence.DataSeeder.SeedAdminAsync(
+        db, hasher, builder.Configuration, logger);
 }
 app.UseSwagger();
 app.UseSwaggerUI();

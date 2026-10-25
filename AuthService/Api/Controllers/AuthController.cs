@@ -3,8 +3,12 @@ using AuthService.Application.Auth.Commands.Logout;
 using AuthService.Application.Auth.Commands.Refresh;
 using AuthService.Application.Auth.Commands.Register;
 using AuthService.Application.Auth.Common;
+using AuthService.Application.Auth.Queries.GetCurrentUser;
 using MediatR;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
 
 namespace AuthService.Api.Controllers;
 
@@ -135,5 +139,25 @@ public class AuthController : ControllerBase
         Response.Cookies.Delete("refresh_token");
 
         return NoContent();
+    }
+
+    /// <summary>Информация о текущем аутентифицированном пользователе.</summary>
+    /// <response code="200">Пользователь найден.</response>
+    /// <response code="401">Токен отсутствует или невалиден.</response>
+    /// <response code="404">Пользователь из токена не найден в БД.</response>
+    [Authorize]
+    [HttpGet("me")]
+    public async Task<ActionResult<UserDto>> Me(CancellationToken ct)
+    {
+        // JwtBearer по умолчанию мапит "sub" в ClaimTypes.NameIdentifier.
+        // Берём оттуда, с fallback на "sub" — на случай другой настройки TokenValidationParameters.
+        var sub = User.FindFirstValue(ClaimTypes.NameIdentifier)
+                  ?? User.FindFirstValue(JwtRegisteredClaimNames.Sub);
+
+        if (!Guid.TryParse(sub, out var userId))
+            return Unauthorized(new { error = "Invalid user identifier in token." });
+
+        var user = await _mediator.Send(new GetCurrentUserQuery(userId), ct);
+        return user is null ? NotFound() : Ok(user);
     }
 }
